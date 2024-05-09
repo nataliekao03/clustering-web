@@ -43,7 +43,7 @@ echo <<<_END
     </form>
 <script>
     function validateName(field){
-        return (field == "") ? "No name was entered<br>": "";
+        return (field == "") ? "No name was entered.\\n": "";
     }
 
     function validateUsername(field){
@@ -60,7 +60,7 @@ echo <<<_END
     }
 
     function validateEmail(field){
-        if(field.trim() == "") return "No Email was entered<br>";
+        if(field.trim() == "") return "No Email was entered.\\n";
         else if (!((field.indexOf(".") > 0)  && (field.indexOf("@") > 0)) || /[^a-zA-Z0-9.@_-]/.test(field))
         return "The Email address is invalid.\\n";
         return "";
