@@ -47,11 +47,15 @@ echo <<<_END
     }
 
     function validateUsername(field){
-        if (field == "") return "No Username was entered.\n";
-        else if (field.length < 5)
-            return "Usernames must be at least 5 characters.\n";
-        else if (/[^a-zA-Z0-9_-]/.test(field))
-            return "Only a-z, A-Z, 0-9, - and _ allowed in Usernames.\n";
+        if (field == "") {
+            return "No Username was entered.\\n";
+        }
+        else if (field.length < 5){
+            return "Usernames must be at least 5 characters.\\n";
+        }
+        else if (/[^a-zA-Z0-9_-]/.test(field)){
+            return "Only a-z, A-Z, 0-9, - and _ allowed in Usernames.\\n";
+        }
         return "";
     }
 
@@ -135,7 +139,7 @@ if(isset($_POST['logUsername']) && isset($_POST['logPassword'])){
     $row = $results->fetch_array(MYSQLI_NUM);
     $stmt->close();
 
-    if ($token==$row[3]){
+    if ($row && $token==$row[3]){
         session_start();
         $_SESSION['username'] = $username;
         $_SESSION['initiated'] = true;
