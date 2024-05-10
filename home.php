@@ -1,195 +1,120 @@
-<?php
+<?php //home page
+//for data.txt:
+//1.0, 2.0
+//1.5, 1.8
+//5.0, 8.0
+//8.0, 8.0
+// Cluster 1: (1.0, 2.0), (1.5, 1.8)
+// Cluster 2: (2.0, 2.0)
+// Cluster 3: (5.0, 8.0), (8.0, 8.0)
+
+//ini_set('display_errors', 1);
+//ini_set('display_startup_errors', 1);
+//error_reporting(E_ALL);
+
+//connect to database
 require_once 'login.php';
-
 $conn = new mysqli($hn, $un, $pw, $db);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+if ($conn->connect_error)
+    die($conn->connect_error);
 
-echo <<<_END
-<html>
-    <head>
-        <title>Login/Signup Page</title>
-        <style>
-        .signup {
-            border:1px solid #999999; font: normal 14px helvetica; color: #444444;
-        }
-    </style>
-    </head>
-<body>
-    <form method="post" action="home.php" onSubmit="return validateLogin(this)">
-        <table border="0" cellpadding="2" cellspacing="5" bgcolor="#eeeeee">
-            <th colspan="2" align="center">Login</th>
-        <tr><td>Username</td>
-            <td><input type="text" maxlength="128" name="logUsername"></td></tr>
-        <tr><td>Password</td>
-            <td><input type="password" maxlength="128" name="logPassword"></td></tr>
-        <tr><td colspan="2" align="center"><input type="submit" value="Login"></td></tr>
-    </table>
-</form>
-    <form method="post" action="home.php" onSubmit="return validateSignUp(this)">
-        <table border="0" cellpadding="2" cellspacing="5" bgcolor="#eeeeee">
-            <th colspan="2" align="center">Signup Form</th>
-            <tr><td>Name</td>
-                <td><input type="text" maxlength="128" name="name"></td></tr>
-            <tr><td>Username</td>
-                <td><input type="text" maxlength="128" name="username"></td></tr>
-            <tr><td>Email</td>
-                <td><input type="text" maxlength="128" name="email"></td></tr>
-            <tr><td>Password</td>
-            <td><input type="password" maxlength="255" name="password"></td></tr>
-            <tr><td colspan="2" align="center"><input type="submit" value="Signup"></td></tr>
-        </table>
-    </form>
-<script>
-    function validateName(field){
-        return (field == "") ? "No name was entered.\\n": "";
+echo "<!DOCTYPE html>\n<html><head><title>Home</title>"; 
+
+session_start();
+if (isset($_SESSION['username'])) {
+    $username = $_SESSION['username'];
+
+    echo "Welcome back $username.<br><br>";
+
+    //upload file 
+    echo <<<_END
+    <html><head><title>PHP Form Upload</title></head><body>
+    <form method='post' action='home.php' enctype='multipart/form-data'>
+    Select a TXT File:
+    <input type='file' name='filename' size='10'><br><br>
+    Enter model name: 
+    <input type='text' name='modelname'><br><br>
+    <input type='submit' value='Submit Scores'></form>
+    _END;
+
+    if ($_FILES) {
+        if (isset($_POST['modelname']))
+            $modelname = get_post($conn, 'modelname');
+        echo $modelname;
+        $file = $_FILES['filename']['name'];
+
+        // Must be .txt file type
+        if ($_FILES['filename']['type'] == 'text/plain') {
+
+            // Open file
+            $fh = fopen($file, 'r') or
+                die("File does not exist or you lack permission to open it");
+
+            // Read file
+            while (!feof($fh)) {
+                $line = fgets($fh);
+                $scores .= $line;
+            }
+
+            //insert name and text file of scores into table uploaded 
+            $query = "INSERT INTO scores VALUES" .
+                "('$username', '$modelname', '$scores', '', '')";
+            $result = $conn->query($query);
+            if (!$result)
+                echo "INSERT failed: $query<br>" . $conn->error . "<br><br>";
+
+        } else
+            echo "'$file' is not an accepted file type";
+    } else
+        echo "No text file has been uploaded <br><br>";
+
+    echo "</body></html>";
+
+    // display user's uploaded scores 
+    echo "<br><strong> Your Uploaded Scores:</strong><br>";
+
+    $query = "SELECT * FROM scores";
+    $result = $conn->query($query);
+    if (!$result)
+        die("Database access failed: " . $conn->error);
+
+    $rows = $result->num_rows;
+
+    for ($j = 0; $j < $rows; ++$j) {
+        $result->data_seek($j);
+        $row = $result->fetch_array(MYSQLI_NUM);
+        echo <<<_END
+        <pre>
+        <strong>Username:</strong> $row[0]
+        <strong>Model Name:</strong> $row[1]
+        <strong>Scores:</strong>
+        $row[2]
+        </pre>
+        <form action="test.php" method="post">
+        <input type="hidden" name="modelname" value="$row[1]">
+        <input type="hidden" name="scores" value="$row[2]">
+        <input type='submit' name='test_model' value='Test Model'>
+        </form>
+        _END;
     }
 
-    function validateUsername(field){
-        if (field == "") {
-            return "No Username was entered.\\n";
-        }
-        else if (field.length < 5){
-            return "Usernames must be at least 5 characters.\\n";
-        }
-        else if (/[^a-zA-Z0-9_-]/.test(field)){
-            return "Only a-z, A-Z, 0-9, - and _ allowed in Usernames.\\n";
-        }
-        return "";
-    }
-
-    function validateEmail(field){
-        if(field.trim() == "") return "No Email was entered.\\n";
-        else if (!((field.indexOf(".") > 0)  && (field.indexOf("@") > 0)) || /[^a-zA-Z0-9.@_-]/.test(field))
-        return "The Email address is invalid.\\n";
-        return "";
-    }
-
-    function validatePassword(field) {
-        if (field.trim() === "") return "No Password was entered.\\n";
-        else if (field.length < 6)
-            return "Passwords must be at least 6 characters.\\n";
-        else if (!/[a-z]/.test(field) || !/[A-Z]/.test(field) || !/[0-9]/.test(field))
-            return "Passwords require one each of a-z, A-Z and 0-9.\\n";
-        return "";
-    }
-
-    function validateSignUp(form){
-        var fail = "";
-        fail += validateName(form.name.value);
-        fail += validateUsername(form.username.value);
-        fail += validateEmail(form.email.value);
-        fail += validatePassword(form.password.value);
-
-        if (fail === "") return true;
-        else { alert(fail); return false; }
-    }
-
-    function validateLogin(form){
-        var fail = "";
-        fail += validateUsername(form.logUsername.value);
-        fail += validatePassword(form.logPassword.value);
-    
-        if (fail === "") return true;
-        else { alert(fail); return false; }
-    }
-</script>
-
-_END;
-
-if (isset($_POST['name']) && isset($_POST['username']) && isset($_POST['email']) && isset($_POST['password'])) {
-    $name = sanitizeString($_POST['name']);
-    $username = sanitizeString($_POST['username']);
-    $email = sanitizeString($_POST['email']);
-    $password = sanitizeString($_POST['password']);
-
-    if(searchUsername($username)){
-        echo '<script>alert("This username is already taken.");</script>';
-    }else{
-        if(verify($name, $username, $email, $password)){
-            $salt1 = "qm&h*";
-            $salt2 = "pg!@";
-            $token = hash('ripemd128', $salt1 . $password . $salt2); // Correct token generation
-            insertDB($name, $username, $email, $token);
-
-            session_start();
-            $_SESSION['username'] = $username;
-            $_SESSION['initiated'] = true;
-            $conn->close();
-            header('Location: test.php');
-            exit();
-
-        }
-    }
-}
-
-if(isset($_POST['logUsername']) && isset($_POST['logPassword'])){
-    $username = sanitizeString($_POST['logUsername']);
-    $password = sanitizeString($_POST['logPassword']);
-
-    $salt1 = "qm&h*";
-    $salt2 = "pg!@";
-    $token = hash('ripemd128', $salt1 . $password . $salt2);
-
-    $stmt = $conn->prepare('SELECT * FROM credentials WHERE username=? AND password=?');
-    $stmt->bind_param('ss', $username, $token);
-    $stmt->execute();
-    $results = $stmt->get_result();
-    $row = $results->fetch_array(MYSQLI_NUM);
-    $stmt->close();
-
-    if ($row && $token==$row[3]){
-        session_start();
+    // test and display tested model with new points using k-means clustering
+    if (isset($_POST['test_model'])) {
         $_SESSION['username'] = $username;
-        $_SESSION['initiated'] = true;
-        $conn->close();
-        header("Location: test.php"); 
-        exit();
-    }else{
-        echo "Incorrect Login Information. Please try again.";
+        $_SESSION['modelname'] = $_POST['modelname'];
+        $_SESSION['scores'] = $_POST['scores'];
     }
+} else
+    // If unregistered user accesses this page, redirect them to log in
+    echo "Please <a href='loginsignup.php'>click here</a> to log in.";
+
+
+$result->close();
+$conn->close();
+
+function get_post($conn, $var)
+{
+    return $conn->real_escape_string($_POST[$var]);
 }
 
-
-function insertDB($name, $username, $email, $password){
-    global $conn;
-    $stmt = $conn->prepare('INSERT INTO credentials VALUES (?, ?, ?, ?)');
-    $stmt->bind_param('ssss', $name, $username, $email, $password);
-    $stmt->execute();
-    $stmt->close();
-}
-
-
-function verify($name, $username, $email, $token){
-    if ($name == ''){
-        return false;
-    }elseif($username == '' || (!preg_match('/^[a-zA-Z0-9_-]+$/', $username))){
-        return false;
-    }elseif($email == '' || !(strpos($email, '.') > 0 && strpos($email, '@') > 0) || preg_match('/[^a-zA-Z0-9.@_-]/', $email)){
-        return false;
-    }elseif ($token == '' || strlen($token) < 8 || !preg_match('/[a-z]/', $token) || !preg_match('/[A-Z]/', $token) || !preg_match('/[0-9]/', $token)){
-        return false;
-    }else{
-        return true;
-    }
-
-}function searchUsername($username){
-    global $conn;
-    $stmt = $conn->prepare('SELECT * FROM credentials WHERE username=?');
-    $stmt->bind_param('s', $username);
-    $stmt->execute();
-    $results = $stmt->get_result();
-    $exists = $results->num_rows > 0;
-    $stmt->close();
-    return $exists;
-
-}
-
-function sanitizeString($var) {
-    $var = stripslashes($var);
-    $var = strip_tags($var);
-    $var = htmlentities($var);
-    return $var;
-}
 ?>
