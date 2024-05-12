@@ -10,9 +10,40 @@ CREATE TABLE credentials (
 );
 
 CREATE TABLE scores (
+    scoresid int NOT NULL AUTOINCREMENT PRIMARY KEY,
     username VARCHAR(128) NOT NULL,
     modelname VARCHAR(128) NOT NULL,
     scores text NOT NULL,
-    kmeans text,
-    em text
+    kmid text,
+    emid text
 );
+
+CREATE TABLE km (
+    kmid INT AUTO_INCREMENT PRIMARY KEY,
+    modelname VARCHAR(128),
+    centroid1x FLOAT,
+    centroid1y FLOAT,
+    centroid2x FLOAT,
+    centroid2y FLOAT,
+    centroid3x FLOAT,
+    centroid3y FLOAT
+);
+--     FOREIGN KEY (kmid) REFERENCES scores (kmid)
+
+CREATE TABLE em (
+    emid INT AUTO_INCREMENT PRIMARY KEY,
+    modelname VARCHAR(128),
+    iteration INT,
+    centroid1x FLOAT,
+    centroid1y FLOAT,
+    centroid2x FLOAT,
+    centroid2y FLOAT,
+    centroid3x FLOAT,
+    centroid3y FLOAT
+);
+--     FOREIGN KEY (emid) REFERENCES scores (emid)
+
+
+ALTER TABLE scores
+ADD FOREIGN KEY (kmid) REFERENCES km (kmid),
+ADD FOREIGN KEY (emid) REFERENCES em (emid);
