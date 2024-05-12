@@ -78,7 +78,7 @@ if (isset($_SESSION['username'])) {
 
         } else
             echo "'$file' is not an accepted file type";
-    } 
+    }
 
     // Display user's scores in dropdown menu
     echo <<<_END
@@ -118,22 +118,23 @@ if (isset($_SESSION['username'])) {
         </script>
     _END;
 
-    $selected_model = "";
-    $selected_scores = "";
-
     // Get the selected model name and scores to test
     if (isset($_POST['model_dropdown'])) {
-        $selected_model = $_POST['model_dropdown'];
+        $selected_modelname = $_POST['model_dropdown'];
 
-        if (!empty($selected_model)) {
-            $selected_scores = getScores($username, $selected_model, $conn);
+        if (!empty($selected_modelname)) {
+            $row = getScoresRow($username, $selected_modelname, $conn);
+            //print_r($row);
+            $selected_scoresid = $row['scoresid'];
+            $selected_scores = $row['scores'];
 
             echo <<<_END
             <form action="home.php" method="post">
-            <input type="hidden" name="selected_model" value="$selected_model">
+            <intput type="hidden" name="selected_scoresid" value="$selected_scoresid">
+            <input type="hidden" name="selected_modelname" value="$selected_modelname">
             <input type="hidden" name="selected_scores" value="$selected_scores">
                 <table>
-                    <tr><td><strong>Selected Model:</strong> $selected_model</td></tr>
+                    <tr><td><strong>Selected Model:</strong> $selected_modelname</td></tr>
                     <tr><td>
                         <div style="height: 300px; width: 800px; overflow: auto;">
                             <strong>Scores:</strong><br>$selected_scores
@@ -148,7 +149,7 @@ if (isset($_SESSION['username'])) {
         }
     }
     if (isset($_POST['km'])) {
-        kmeans($_POST['selected_model'], $_POST['selected_scores']);
+        kmeans($_POST['selected_scoresid'], $_POST['selected_modelname'], $_POST['selected_scores'], $conn);
     }
     if (isset($_POST['em'])) {
         em($selected_model, $selected_scores);
@@ -160,7 +161,7 @@ if (isset($_SESSION['username'])) {
 
 $conn->close();
 
-function em($modelname, $scores)
+function em($scoresid, $modelname, $scores)
 {
     $em = "";
     echo <<<_END
@@ -176,7 +177,7 @@ function em($modelname, $scores)
         </table>
     _END;
 }
-function kmeans($modelname, $scores)
+function kmeans($scoresid, $modelname, $scores, $conn)
 {
     // Parse scores from text file
     $data = [];
@@ -186,12 +187,9 @@ function kmeans($modelname, $scores)
         $data[] = [floatval($values[0]), floatval($values[1])];
     }
 
-    // Number of clusters = 3
-    $k = 3;
-
-    // Initialize cluster centroids randomly
+    // Initialize the 3 cluster centroids randomly
     $centroids = [];
-    for ($i = 0; $i < $k; $i++) {
+    for ($i = 0; $i < 3; $i++) {
         $centroids[] = [$data[rand(0, count($data) - 1)][0], $data[rand(0, count($data) - 1)][1]];
     }
 
@@ -200,14 +198,16 @@ function kmeans($modelname, $scores)
     for ($iteration = 0; $iteration < $max_iterations; $iteration++) {
         // Assign each data point to the nearest centroid
         $clusters = [];
-        foreach ($data as $point) {
+        for ($i = 0; $i < count($data); $i++) { // go through each data as a point
+            $point = $data[$i];
             $min_distance = PHP_INT_MAX;
             $closest_centroid = null;
-            foreach ($centroids as $idx => $centroid) {
+            for ($j = 0; $j < count($centroids); $j++) { // calculate distance from each centroid
+                $centroid = $centroids[$j];
                 $distance = sqrt(pow($point[0] - $centroid[0], 2) + pow($point[1] - $centroid[1], 2));
                 if ($distance < $min_distance) {
                     $min_distance = $distance;
-                    $closest_centroid = $idx;
+                    $closest_centroid = $j;
                 }
             }
             $clusters[$closest_centroid][] = $point;
@@ -227,8 +227,9 @@ function kmeans($modelname, $scores)
 
         // Check for convergence
         $converged = true;
-        foreach ($centroids as $idx => $centroid) {
-            if (abs($centroid[0] - $new_centroids[$idx][0]) > 0.001 || abs($centroid[1] - $new_centroids[$idx][1]) > 0.001) {
+        for ($i = 0; $i < count($centroids); $i++) {
+            $centroid = $centroids[$i];
+            if (abs($centroid[0] - $new_centroids[$i][0]) > 0.001 || abs($centroid[1] - $new_centroids[$i][1]) > 0.001) {
                 $converged = false;
                 break;
             }
@@ -242,6 +243,23 @@ function kmeans($modelname, $scores)
             $centroids = $new_centroids;
         }
     }
+
+    // Iterate over centroids and print out coordinates
+    for ($i = 0; $i < count($centroids); $i++) {
+        $centroid = $centroids[$i];
+        $centroidsxy[] = $centroid[0];
+        $centroidsxy[] = $centroid[1];
+        echo "Centroid " . ($i + 1) . " - X: " . $centroid[0] . ", Y: " . $centroid[1] . "<br>";
+    }
+    //print_r($centroidsxy);
+    //echo $centroidsxy[0];
+
+    // Insert results (centroids) into km table to train other models  
+    $query = "INSERT INTO km (modelname, centroid1x, centroid1y, centroid2x, centroid2y, centroid3x, centroid3y) 
+                VALUES ('$modelname', $centroidsxy[0], $centroidsxy[1], $centroidsxy[2], $centroidsxy[3], $centroidsxy[4], $centroidsxy[5])";
+    $result = $conn->query($query);
+    if (!$result)
+        die("Insertion failed: " . $conn->error);
 
     // Output the clustering results
     echo <<<_END
@@ -266,18 +284,18 @@ function kmeans($modelname, $scores)
     _END;
 }
 
-function getScores($username, $selected_model, $conn)
+function getScoresRow($username, $selected_model, $conn)
 {
-    $query = "SELECT scores FROM scores WHERE username = '$username' AND modelname = '$selected_model'";
+    $query = "SELECT * FROM scores WHERE username = '$username' AND modelname = '$selected_model'";
     $result = $conn->query($query);
     if (!$result)
         die("Database access failed: " . $conn->error);
 
     $row = $result->fetch_assoc();
-    return $row['scores'];
+    return $row;
 }
 
-// i created this searchModelName function but did not use 
+// did not use yet - created to ensure unique model names
 function searchModelName($modelname, $conn)
 {
     $query = "SELECT * FROM advisors WHERE modelname == $modelname";
