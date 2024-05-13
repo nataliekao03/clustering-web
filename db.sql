@@ -10,12 +10,12 @@ CREATE TABLE credentials (
 );
 
 CREATE TABLE scores (
-    scoresid int NOT NULL AUTOINCREMENT PRIMARY KEY,
+    scoresid int NOT NULL AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(128) NOT NULL,
     modelname VARCHAR(128) NOT NULL,
     scores text NOT NULL,
-    kmid text,
-    emid text
+    kmid INT,
+    emid INT
 );
 
 CREATE TABLE km (
@@ -26,7 +26,8 @@ CREATE TABLE km (
     centroid2x FLOAT,
     centroid2y FLOAT,
     centroid3x FLOAT,
-    centroid3y FLOAT
+    centroid3y FLOAT,
+    UNIQUE (modelname)
 );
 --     FOREIGN KEY (kmid) REFERENCES scores (kmid)
 
@@ -39,11 +40,19 @@ CREATE TABLE em (
     centroid2x FLOAT,
     centroid2y FLOAT,
     centroid3x FLOAT,
-    centroid3y FLOAT
+    centroid3y FLOAT,
+    UNIQUE (modelname)
 );
 --     FOREIGN KEY (emid) REFERENCES scores (emid)
-
 
 ALTER TABLE scores
 ADD FOREIGN KEY (kmid) REFERENCES km (kmid),
 ADD FOREIGN KEY (emid) REFERENCES em (emid);
+
+-- to delete all records in scores;
+truncate scores;
+
+-- to delete all records in km;
+delete from km where kmid > 0;
+-- to reset kmid in km to 0
+alter table km auto_increment = 0;
