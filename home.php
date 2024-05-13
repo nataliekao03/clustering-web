@@ -18,11 +18,26 @@ session_start();
 // HTML header
 echo "<!DOCTYPE html>\n<html><head><title>Home</title>";
 
+//logout function
+if(isset($_POST['logout'])){
+    session_unset();
+    session_destroy();
+    header('Location: loginsignup.php');
+}
+
 // Must be registered user in order to access home page
 if (isset($_SESSION['username'])) {
     $username = $_SESSION['username'];
 
     echo "Welcome back $username.<br><br>";
+
+    //logout button
+    echo <<<_END
+        <form method="post" action="home.php">
+            <input type="submit" name="logout" value="Logout">
+        </form>
+        <br>
+    _END;
 
     // Upload form 
     echo <<<_END
