@@ -5,6 +5,8 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+require_once 'em.php';
+
 // Connect to database
 require_once 'login.php';
 $conn = new mysqli($hn, $un, $pw, $db);
@@ -54,31 +56,38 @@ if (isset($_SESSION['username'])) {
         if (isset($_POST['modelname']))
             $modelname = get_post($conn, 'modelname');
 
-        $file = $_FILES['filename']['name'];
+        $modelExists = checkModelNameExists($modelname, $conn);
 
-        // Must be .txt file type
-        if ($_FILES['filename']['type'] == 'text/plain') {
+        if ($modelExists) {
+            echo "Error: Model name '$modelname' already exists. Please choose a different name.";
+        } else {
+            $file = $_FILES['filename']['name'];
 
-            // Open file
-            $fh = fopen($file, 'r') or
-                die("File does not exist or you lack permission to open it");
+            // Must be .txt file type
+            if ($_FILES['filename']['type'] == 'text/plain') {
 
-            // Read file
-            while (!feof($fh)) {
-                $line = fgets($fh);
-                $scores .= $line;
-            }
+                // Open file
+                $fh = fopen($file, 'r') or
+                    die("File does not exist or you lack permission to open it");
 
-            // Insert scores into database
-            $query = "INSERT INTO scores (username, modelname, scores) VALUES 
-                ('$username', '$modelname', '$scores')";
-            $result = $conn->query($query);
-            if (!$result)
-                echo "INSERT failed: $query<br>" . $conn->error . "<br><br>";
+                // Read file
+                while (!feof($fh)) {
+                    $line = fgets($fh);
+                    $scores .= $line;
+                }
 
-        } else
-            echo "'$file' is not an accepted file type";
+                // Insert scores into database
+                $query = "INSERT INTO scores (username, modelname, scores) VALUES 
+                    ('$username', '$modelname', '$scores')";
+                $result = $conn->query($query);
+                if (!$result)
+                    echo "INSERT failed: $query<br>" . $conn->error . "<br><br>";
+
+            } else
+                echo "'$file' is not an accepted file type";
+        }
     }
+
 
     // Display user's scores in dropdown menu
     echo <<<_END
@@ -152,7 +161,7 @@ if (isset($_SESSION['username'])) {
         kmeans($_POST['selected_scoresid'], $_POST['selected_modelname'], $_POST['selected_scores'], $conn);
     }
     if (isset($_POST['em'])) {
-        em($selected_model, $selected_scores);
+        em($_POST['selected_scoresid'], $_POST['selected_modelname'], $_POST['selected_scores'], $conn);
     }
 
 } else
@@ -161,15 +170,54 @@ if (isset($_SESSION['username'])) {
 
 $conn->close();
 
-function em($scoresid, $modelname, $scores)
+function em($scoresid, $modelname, $scores, $conn)
 {
-    $em = "";
+    //parse input data
+    $data = [];
+    $lines = explode("\n", $scores);
+    foreach ($lines as $line) {
+        $values = explode(",", $line);
+        $data[] = [floatval($values[0]), floatval($values[1])];
+    }
+
+    //initialize EM parameters
+    $num_clusters = 3;      //number of clusters
+    $max_iterations = 100;  //max number of iterations
+    $tolerance = 0.001;     //tolerance for convergence
+
+    //perform EM algorithm
+    $cluster_means = expectationMaximization($data, $num_clusters, $max_iterations, $tolerance);
+
+    //output results 
+    $em_output = "Cluster means:<br>";
+    foreach ($cluster_means as $index => $mean) {
+        $em_output .= "Cluster " . ($index + 1) . ": (" . implode(", ", $mean) . ")<br>";
+    }
+
+    // Insert EM results into the database
+    $centroid1x = $cluster_means[0][0];
+    $centroid1y = $cluster_means[0][1];
+    $centroid2x = $cluster_means[1][0];
+    $centroid2y = $cluster_means[1][1];
+    $centroid3x = $cluster_means[2][0];
+    $centroid3y = $cluster_means[2][1];
+
+    $query = "INSERT INTO em (modelname, iteration, centroid1x, centroid1y, centroid2x, centroid2y, centroid3x, centroid3y) 
+          VALUES ('$modelname', $max_iterations, '$centroid1x', '$centroid1y', '$centroid2x', '$centroid2y', '$centroid3x', '$centroid3y')";
+
+    // Execute the query
+    $result = $conn->query($query);
+    if (!$result) {
+        die("Insertion failed: " . $conn->error);
+    }
+
+    // Display EM output
     echo <<<_END
         <table>
             <tr><td><strong>Selected Model:</strong> $modelname</td></tr>
             <tr><td>
                 <div style="height: 300px; width: 800px; overflow: auto;">
-                    <strong>EM:</strong><br>$em;
+                    <strong>EM Output:</strong><br>$em_output
                 </div>
             </td></tr>
             <tr><td><input type='submit' name='km' value='K-Means'>
@@ -177,6 +225,9 @@ function em($scoresid, $modelname, $scores)
         </table>
     _END;
 }
+
+
+//kmeans
 function kmeans($scoresid, $modelname, $scores, $conn)
 {
     // Parse scores from text file
@@ -310,5 +361,31 @@ function get_post($conn, $var)
 {
     return $conn->real_escape_string($_POST[$var]);
 }
+
+function checkModelNameExists($modelname, $conn) {
+    // Sanitize the input to prevent SQL injection
+    $modelname = $conn->real_escape_string($modelname);
+
+    // Prepare the query
+    $query = "SELECT * FROM scores WHERE modelname = '$modelname'";
+    
+    // Execute the query
+    $result = $conn->query($query);
+    
+    if (!$result) {
+        // Query execution failed
+        die("Query failed: " . $conn->error);
+    }
+
+    // Check if any rows were returned
+    if ($result->num_rows > 0) {
+        // Model name exists
+        return true;
+    } else {
+        // Model name does not exist
+        return false;
+    }
+}
+
 
 ?>
