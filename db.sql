@@ -36,7 +36,7 @@ CREATE TABLE em (
     modelname VARCHAR(128),
     means VARCHAR(255) NOT NULL,
     variances VARCHAR(255) NOT NULL,
-    mixing_coefficents VARCHAR(255) NOT NULL,
+    mixing_coefficients VARCHAR(255) NOT NULL,
     UNIQUE (modelname)
 );
 --     FOREIGN KEY (emid) REFERENCES scores (emid)
