@@ -157,7 +157,7 @@ if (isset($_SESSION['username'])) {
             $typedscores = $_POST['typedscores'];
 
             // Regular expression to match the format x,y
-            $regex = '/^\d+,\s?\d+$/m';
+            $regex = '/^[-]?\d+(\.\d+)?,\s?[-]?\d+(\.\d+)?$/m';
 
             // Check if the input matches the format
             if (preg_match($regex, $typedscores)) {
