@@ -44,37 +44,49 @@ if (isset($_SESSION['username'])) {
     echo <<<_END
     <div style="display: flex; justify-content: center; align-items: center;">
         <form method="post" action="home.php" enctype='multipart/form-data'>
-            <table border="0" cellpadding="2" cellspacing="15" bgcolor="#eeeeee">
-                <th colspan="2" align="center">Train Model</th>
-                <tr>
-                    <td>Choose algorithm:</td>
-                    <td><select name='algorithm_dropdown'>
-                        <option value=''>Select algorithm</option>
-                        <option value="K-Means">K-Means</option>  
-                        <option value="Expectation Maximization">Expectation Maximization</option>  
-                    </select></td>
-                </tr>
-                <tr>
-                    <td>Model name:</td>
-                    <td><input type="text" maxlength="128" name="modelname"></td>
-                </tr>
-                <tr>
-                    <td>Upload Scores:</td>
-                    <td><select id="uploadscores_dropdown" name='uploadscores_dropdown' onchange="toggleUploadMethod()">
-                        <option value=''>Select method</option>
-                        <option value="uploadfile">Upload TXT File</option>  
-                        <option value="textbox">Type in text Box</option>  
-                    </select></td>
-                </tr>
-                <tr id="file_input" style="display:none;">
-                    <td><input type="file" maxlength="128" name="filename" size="10"></td>
-                </tr>
-                <tr id="text_box" style="display:none;">
-                    <td><textarea name="typedscores" rows="5" cols="50"></textarea></td>
-                </tr>
-                <tr>
-                    <td colspan="2" align="center"><input type="submit" name ="trainmodel" value="Train Model"></td>
-                </tr>
+            <table border="0" cellpadding="2" cellspacing="15" bgcolor="#eeeeee" style="width: 500px;">
+                <thead>
+                    <tr>
+                        <th colspan="2" align="center">Train Model</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Choose algorithm:</td>
+                        <td><select name='algorithm_dropdown'>
+                            <option value=''>Select algorithm</option>
+                            <option value="K-Means">K-Means</option>  
+                            <option value="Expectation Maximization">Expectation Maximization</option>  
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td>Model name:</td>
+                        <td><input type="text" maxlength="128" name="modelname" style="width: 80%;"></td>
+                    </tr>
+                    <tr>
+                        <td>Upload Scores:</td>
+                        <td><select id="uploadscores_dropdown" name='uploadscores_dropdown' onchange="toggleUploadMethod()" style="width: 70%;">
+                            <option value=''>Select method</option>
+                            <option value="uploadfile">Upload TXT File</option>  
+                            <option value="textbox">Type in text Box</option>  
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <div style="position: relative; height: 100px;"> <!-- Adjust height as needed -->
+                                <div id="file_input" style="position: absolute; top: 0; left: 0; width: 100%; display: none;">
+                                    <input type="file" maxlength="128" name="filename" style="width: 100%;">
+                                </div>
+                                <div id="text_box" style="position: absolute; top: 0; left: 0; width: 100%; display: none;">
+                                    <textarea name="typedscores" rows="5" style="width: 100%;"></textarea>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" align="center"><input type="submit" name="trainmodel" value="Train Model"></td>
+                    </tr>
+                </tbody>
             </table>
         </form>
     </div>
@@ -90,6 +102,9 @@ if (isset($_SESSION['username'])) {
             } else if (dropdown.value === "textbox") {
                 fileInput.style.display = "none";
                 textBox.style.display = "block";
+            } else {
+                fileInput.style.display = "none";
+                textBox.style.display = "none";
             }
         }
     </script>
