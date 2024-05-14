@@ -34,15 +34,12 @@ CREATE TABLE km (
 CREATE TABLE em (
     emid INT AUTO_INCREMENT PRIMARY KEY,
     modelname VARCHAR(128),
-    iteration INT,
-    centroid1x FLOAT,
-    centroid1y FLOAT,
-    centroid2x FLOAT,
-    centroid2y FLOAT,
-    centroid3x FLOAT,
-    centroid3y FLOAT,
+    means VARCHAR(512) NOT NULL,
+    variances VARCHAR(512) NOT NULL,
+    mixing_coefficients VARCHAR(512) NOT NULL,
     UNIQUE (modelname)
 );
+
 --     FOREIGN KEY (emid) REFERENCES scores (emid)
 
 ALTER TABLE scores

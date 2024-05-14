@@ -83,13 +83,22 @@ function km($modelname, $scores, $conn)
     }
     //print_r($centroidsxy);
 
-    // Insert results (centroids) into km table to train other models later
     $newmodelname = "$modelname.KM";
-    $query = "INSERT INTO km (modelname, centroid1x, centroid1y, centroid2x, centroid2y, centroid3x, centroid3y) 
-                VALUES ('$newmodelname', $centroidsxy[0], $centroidsxy[1], $centroidsxy[2], $centroidsxy[3], $centroidsxy[4], $centroidsxy[5])";
+
+    // Dynamically insert results into km based on number of centroids
+    $query = "INSERT INTO km (modelname";
+    for ($i = 0; $i < count($centroids); $i++) {
+        $query .= ", centroid" . ($i + 1) . "x, centroid" . ($i + 1) . "y";
+    }
+    $query .= ") VALUES ('$newmodelname'";
+    for ($i = 0; $i < count($centroids); $i++) {
+        $query .= ", " . ($centroidsxy[$i * 2] ?? 'NULL') . ", " . ($centroidsxy[$i * 2 + 1] ?? 'NULL');
+    }
+    $query .= ");";
+
     $result = $conn->query($query);
     if (!$result)
-        die("Insertion failed: " . $conn->error);
+        echo("Insertion failed: " . $conn->error);
 
     // Retrieve the last inserted kmid
     $kmid = $conn->insert_id;

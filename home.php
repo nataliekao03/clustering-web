@@ -1,9 +1,9 @@
 <?php // Home page
 
 // Error reporting
-//ini_set('display_errors', 1);
-//ini_set('display_startup_errors', 1);
-//error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
 require_once 'km.php';
 require_once 'em.php';
@@ -19,13 +19,28 @@ session_start();
 // HTML header
 echo "<!DOCTYPE html>\n<html><head><title>Home</title>";
 
+//logout function
+if (isset($_POST['logout'])) {
+    session_unset();
+    session_destroy();
+    header('Location: loginsignup.php');
+}
+
 // Must be registered user in order to access home page
 if (isset($_SESSION['username'])) {
     $username = $_SESSION['username'];
 
     echo "Welcome back $username.<br><br>";
 
-    // TRAIN MODEL: select algorithm, enter model name, upload file or type scores
+    // Logout button
+    echo <<<_END
+     <form method="post" action="home.php">
+         <input type="submit" name="logout" value="Logout">
+     </form>
+     <br>
+    _END;
+
+    // TRAIN MODEL: select algorithm, enter model name, upload scores (input file or type scores)
     echo <<<_END
     <div style="display: flex; justify-content: center; align-items: center;">
         <form method="post" action="home.php" enctype='multipart/form-data'>
@@ -40,16 +55,22 @@ if (isset($_SESSION['username'])) {
                     </select></td>
                 </tr>
                 <tr>
-                    <td>Enter model name:</td>
+                    <td>Model name:</td>
                     <td><input type="text" maxlength="128" name="modelname"></td>
                 </tr>
                 <tr>
-                    <td>Upload txt file:</td>
+                    <td>Upload Scores:</td>
+                    <td><select id="uploadscores_dropdown" name='uploadscores_dropdown' onchange="toggleUploadMethod()">
+                        <option value=''>Select method</option>
+                        <option value="uploadfile">Upload TXT File</option>  
+                        <option value="textbox">Type in text Box</option>  
+                    </select></td>
+                </tr>
+                <tr id="file_input" style="display:none;">
                     <td><input type="file" maxlength="128" name="filename" size="10"></td>
                 </tr>
-                <tr>
-                    <td>Or type scores:</td>
-                    <td><input type="text" maxlength="128" name="typedscores"></td>
+                <tr id="text_box" style="display:none;">
+                    <td><textarea name="typedscores" rows="5" cols="50"></textarea></td>
                 </tr>
                 <tr>
                     <td colspan="2" align="center"><input type="submit" name ="trainmodel" value="Train Model"></td>
@@ -57,61 +78,104 @@ if (isset($_SESSION['username'])) {
             </table>
         </form>
     </div>
+    <script>
+        function toggleUploadMethod() {
+            var dropdown = document.getElementById("uploadscores_dropdown");
+            var fileInput = document.getElementById("file_input");
+            var textBox = document.getElementById("text_box");
+
+            if (dropdown.value === "uploadfile") {
+                fileInput.style.display = "block";
+                textBox.style.display = "none";
+            } else if (dropdown.value === "textbox") {
+                fileInput.style.display = "none";
+                textBox.style.display = "block";
+            }
+        }
+    </script>
     _END;
 
     $scores = "";
     $selected_algorithm = "";
 
+    // Train Model
     if (isset($_POST['trainmodel'])) {
-        // Handle file upload
-        if ($_FILES) {
-            if (isset($_POST['modelname']))
-                $modelname = get_post($conn, 'modelname');
 
-            $modelExists = checkModelNameExists($modelname, $conn);
+        // Check algorithm is selected
+        if ($_POST['algorithm_dropdown'] == '') {
+            echo "Error: No algorithm selected.";
+            die();
+        }
+        $selected_algorithm = $_POST['algorithm_dropdown'];
 
-            if ($modelExists) {
-                echo "Error: Model name '$modelname' already exists. Please choose a different name.";
+        // Check model name is not empty and unique
+        if ($_POST['modelname'] == '') {
+            echo "Error: No model name inputted.";
+            die();
+        } else if (checkModelNameExists(get_post($conn, 'modelname'), $conn)) {
+            echo "Error: Model name already exists. Please choose a different name.";
+            die();
+        }
+        $modelname = $_POST['modelname'];
+
+        // Handle scores through file upload
+        if (isset($_FILES['filename']) && $_FILES['filename']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['filename']['name'];
+
+            // Must be .txt file type
+            if ($_FILES['filename']['type'] == 'text/plain') {
+
+                // Open file
+                $fh = fopen($file, 'r') or
+                    die("File does not exist or you lack permission to open it");
+
+                // Read file
+                while (!feof($fh)) {
+                    $line = fgets($fh);
+                    $scores .= $line;
+                }
+            } else
+                echo "'$file' is not an accepted file type.";
+
+            // Scores inputted through text box
+        } else if (isset($_POST['typedscores'])) {
+            $typedscores = $_POST['typedscores'];
+
+            // Regular expression to match the format x,y
+            $regex = '/^\d+,\s?\d+$/m';
+
+            // Check if the input matches the format
+            if (preg_match($regex, $typedscores)) {
+                $scores = $typedscores;
             } else {
-                $file = $_FILES['filename']['name'];
-
-                // Must be .txt file type
-                if ($_FILES['filename']['type'] == 'text/plain') {
-
-                    // Open file
-                    $fh = fopen($file, 'r') or
-                        die("File does not exist or you lack permission to open it");
-
-                    // Read file
-                    while (!feof($fh)) {
-                        $line = fgets($fh);
-                        $scores .= $line;
-                    }
-
-                    // Insert scores into database
-                    $query = "INSERT INTO scores (username, modelname, scores) VALUES 
-                    ('$username', '$modelname', '$scores')";
-                    $result = $conn->query($query);
-                    if (!$result)
-                        echo "INSERT failed: $query<br>" . $conn->error . "<br><br>";
-
-                    // Train the model based on the selected algorithm
-                    $selected_algorithm = $_POST['algorithm_dropdown'];
-
-                    if ($selected_algorithm == 'K-Means') {
-                        echo "Training model using K-Means algorithm...<br>";
-                        km($modelname, $scores, $conn);
-
-                    } elseif ($selected_algorithm == 'Expectation Maximization') {
-                        echo "Training model using Expectation Maximization algorithm...<br>";
-                        em($scoresid, $modelname, $scores, $conn);
-                    }
-                } else
-                    echo "'$file' is not an accepted file type";
+                echo "Error: Please enter coordinates in the format x,y";
+                die();
             }
-        } else
-            echo "No file uploaded";
+        } else {
+            echo "Error: File not found or formatted incorrectly.";
+            die();
+        }
+
+        // Insert scores into database
+        $query = "INSERT INTO scores (username, modelname, scores) VALUES 
+            ('$username', '$modelname', '$scores')";
+        $result = $conn->query($query);
+        if (!$result) {
+            echo "INSERT failed: $query<br>" . $conn->error . "<br><br>";
+            die();
+        }
+
+        // Train the model based on the selected algorithm
+        if ($selected_algorithm == 'K-Means') {
+            echo "Training model using K-Means algorithm...<br>";
+            km($modelname, $scores, $conn);
+
+        } elseif ($selected_algorithm == 'Expectation Maximization') {
+            echo "Training model using Expectation Maximization algorithm...<br>";
+            expectationMaximization($modelname, $scores, 3, 100, 0.001, $conn);
+        }
     }
+
 
     // TEST MODEL
     // Choose a trained model, upload scores to test with
@@ -186,6 +250,10 @@ if (isset($_SESSION['username'])) {
                 // Test the uploaded scores based on the selected trained model
                 if (strpos($selected_trainedmodel, 'KM') !== false) {
                     km2($scores, $selected_trainedmodel, $conn);
+                } elseif (strpos($selected_trainedmodel, 'EM') != false) {
+                    em($scores, $selected_trainedmodel, $conn);
+                } else {
+                    echo "No test model chosen";
                 }
             } else
                 echo "'$file' is not an accepted file type";
@@ -198,62 +266,6 @@ if (isset($_SESSION['username'])) {
     echo "Please <a href='loginsignup.php'>click here</a> to log in.";
 
 $conn->close();
-
-function em($modelname, $scores, $conn)
-{
-    //parse input data
-    $data = [];
-    $lines = explode("\n", $scores);
-    foreach ($lines as $line) {
-        $values = explode(",", $line);
-        $data[] = [floatval($values[0]), floatval($values[1])];
-    }
-
-    //initialize EM parameters
-    $num_clusters = 3;      //number of clusters
-    $max_iterations = 100;  //max number of iterations
-    $tolerance = 0.001;     //tolerance for convergence
-
-    //perform EM algorithm
-    $cluster_means = expectationMaximization($data, $num_clusters, $max_iterations, $tolerance);
-
-    //output results 
-    $em_output = "Cluster means:<br>";
-    foreach ($cluster_means as $index => $mean) {
-        $em_output .= "Cluster " . ($index + 1) . ": (" . implode(", ", $mean) . ")<br>";
-    }
-
-    // Insert EM results into the database
-    $centroid1x = $cluster_means[0][0];
-    $centroid1y = $cluster_means[0][1];
-    $centroid2x = $cluster_means[1][0];
-    $centroid2y = $cluster_means[1][1];
-    $centroid3x = $cluster_means[2][0];
-    $centroid3y = $cluster_means[2][1];
-
-    $query = "INSERT INTO em (modelname, iteration, centroid1x, centroid1y, centroid2x, centroid2y, centroid3x, centroid3y) 
-          VALUES ('$modelname', $max_iterations, '$centroid1x', '$centroid1y', '$centroid2x', '$centroid2y', '$centroid3x', '$centroid3y')";
-
-    // Execute the query
-    $result = $conn->query($query);
-    if (!$result) {
-        die("Insertion failed: " . $conn->error);
-    }
-
-    // Display EM output
-    echo <<<_END
-        <table>
-            <tr><td><strong>Selected Model:</strong> $modelname</td></tr>
-            <tr><td>
-                <div style="height: 300px; width: 800px; overflow: auto;">
-                    <strong>EM Output:</strong><br>$em_output
-                </div>
-            </td></tr>
-            <tr><td><input type='submit' name='km' value='K-Means'>
-            <input type='submit' name='em' value='Expectation Maximization'></td></tr>
-        </table>
-    _END;
-}
 
 function get_post($conn, $var)
 {
