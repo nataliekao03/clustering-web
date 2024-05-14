@@ -73,7 +73,7 @@ if (isset($_SESSION['username'])) {
                     </tr>
                     <tr>
                         <td colspan="2">
-                            <div style="position: relative; height: 100px;"> <!-- Adjust height as needed -->
+                            <div style="position: relative; height: 100px;"> 
                                 <div id="file_input" style="position: absolute; top: 0; left: 0; width: 100%; display: none;">
                                     <input type="file" maxlength="128" name="filename" style="width: 100%;">
                                 </div>
