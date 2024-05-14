@@ -1,195 +1,315 @@
-<?php
+<?php // Home page
+
+// Error reporting
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+require_once 'km.php';
+require_once 'em.php';
+
+// Connect to database
 require_once 'login.php';
-
 $conn = new mysqli($hn, $un, $pw, $db);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+if ($conn->connect_error)
+    die($conn->connect_error);
+
+session_start();
+
+// HTML header
+echo "<!DOCTYPE html>\n<html><head><title>Home</title>";
+
+//logout function
+if (isset($_POST['logout'])) {
+    session_unset();
+    session_destroy();
+    header('Location: loginsignup.php');
 }
 
-echo <<<_END
-<html>
-    <head>
-        <title>Login/Signup Page</title>
-        <style>
-        .signup {
-            border:1px solid #999999; font: normal 14px helvetica; color: #444444;
+// Must be registered user in order to access home page
+if (isset($_SESSION['username'])) {
+    $username = $_SESSION['username'];
+
+    echo "Welcome back $username.<br><br>";
+
+    // Logout button
+    echo <<<_END
+     <form method="post" action="home.php">
+         <input type="submit" name="logout" value="Logout">
+     </form>
+     <br>
+    _END;
+
+    // TRAIN MODEL: select algorithm, enter model name, upload scores (input file or type scores)
+    echo <<<_END
+    <div style="display: flex; justify-content: center; align-items: center;">
+        <form method="post" action="home.php" enctype='multipart/form-data'>
+            <table border="0" cellpadding="2" cellspacing="15" bgcolor="#eeeeee" style="width: 500px;">
+                <thead>
+                    <tr>
+                        <th colspan="2" align="center">Train Model</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Choose algorithm:</td>
+                        <td><select name='algorithm_dropdown'>
+                            <option value=''>Select algorithm</option>
+                            <option value="K-Means">K-Means</option>  
+                            <option value="Expectation Maximization">Expectation Maximization</option>  
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td>Model name:</td>
+                        <td><input type="text" maxlength="128" name="modelname" style="width: 80%;"></td>
+                    </tr>
+                    <tr>
+                        <td>Upload Scores:</td>
+                        <td><select id="uploadscores_dropdown" name='uploadscores_dropdown' onchange="toggleUploadMethod()" style="width: 70%;">
+                            <option value=''>Select method</option>
+                            <option value="uploadfile">Upload TXT File</option>  
+                            <option value="textbox">Type in text Box</option>  
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <div style="position: relative; height: 100px;"> <!-- Adjust height as needed -->
+                                <div id="file_input" style="position: absolute; top: 0; left: 0; width: 100%; display: none;">
+                                    <input type="file" maxlength="128" name="filename" style="width: 100%;">
+                                </div>
+                                <div id="text_box" style="position: absolute; top: 0; left: 0; width: 100%; display: none;">
+                                    <textarea name="typedscores" rows="5" style="width: 100%;"></textarea>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" align="center"><input type="submit" name="trainmodel" value="Train Model"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </form>
+    </div>
+    <script>
+        function toggleUploadMethod() {
+            var dropdown = document.getElementById("uploadscores_dropdown");
+            var fileInput = document.getElementById("file_input");
+            var textBox = document.getElementById("text_box");
+
+            if (dropdown.value === "uploadfile") {
+                fileInput.style.display = "block";
+                textBox.style.display = "none";
+            } else if (dropdown.value === "textbox") {
+                fileInput.style.display = "none";
+                textBox.style.display = "block";
+            } else {
+                fileInput.style.display = "none";
+                textBox.style.display = "none";
+            }
         }
-    </style>
-    </head>
-<body>
-    <form method="post" action="home.php" onSubmit="return validateLogin(this)">
-        <table border="0" cellpadding="2" cellspacing="5" bgcolor="#eeeeee">
-            <th colspan="2" align="center">Login</th>
-        <tr><td>Username</td>
-            <td><input type="text" maxlength="128" name="logUsername"></td></tr>
-        <tr><td>Password</td>
-            <td><input type="password" maxlength="128" name="logPassword"></td></tr>
-        <tr><td colspan="2" align="center"><input type="submit" value="Login"></td></tr>
-    </table>
-</form>
-    <form method="post" action="home.php" onSubmit="return validateSignUp(this)">
-        <table border="0" cellpadding="2" cellspacing="5" bgcolor="#eeeeee">
-            <th colspan="2" align="center">Signup Form</th>
-            <tr><td>Name</td>
-                <td><input type="text" maxlength="128" name="name"></td></tr>
-            <tr><td>Username</td>
-                <td><input type="text" maxlength="128" name="username"></td></tr>
-            <tr><td>Email</td>
-                <td><input type="text" maxlength="128" name="email"></td></tr>
-            <tr><td>Password</td>
-            <td><input type="password" maxlength="255" name="password"></td></tr>
-            <tr><td colspan="2" align="center"><input type="submit" value="Signup"></td></tr>
-        </table>
-    </form>
-<script>
-    function validateName(field){
-        return (field == "") ? "No name was entered.\\n": "";
-    }
+    </script>
+    _END;
 
-    function validateUsername(field){
-        if (field == "") {
-            return "No Username was entered.\\n";
+    $scores = "";
+    $selected_algorithm = "";
+
+    // Train Model
+    if (isset($_POST['trainmodel'])) {
+
+        // Check algorithm is selected
+        if ($_POST['algorithm_dropdown'] == '') {
+            echo "Error: No algorithm selected.";
+            die();
         }
-        else if (field.length < 5){
-            return "Usernames must be at least 5 characters.\\n";
+        $selected_algorithm = $_POST['algorithm_dropdown'];
+
+        // Check model name is not empty and unique
+        if ($_POST['modelname'] == '') {
+            echo "Error: No model name inputted.";
+            die();
+        } else if (checkModelNameExists(get_post($conn, 'modelname'), $conn)) {
+            echo "Error: Model name already exists. Please choose a different name.";
+            die();
         }
-        else if (/[^a-zA-Z0-9_-]/.test(field)){
-            return "Only a-z, A-Z, 0-9, - and _ allowed in Usernames.\\n";
+        $modelname = $_POST['modelname'];
+
+        // Handle scores through file upload
+        if (isset($_FILES['filename']) && $_FILES['filename']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['filename']['name'];
+
+            // Must be .txt file type
+            if ($_FILES['filename']['type'] == 'text/plain') {
+
+                // Open file
+                $fh = fopen($file, 'r') or
+                    die("File does not exist or you lack permission to open it");
+
+                // Read file
+                while (!feof($fh)) {
+                    $line = fgets($fh);
+                    $scores .= $line;
+                }
+            } else
+                echo "'$file' is not an accepted file type.";
+
+            // Scores inputted through text box
+        } else if (isset($_POST['typedscores'])) {
+            $typedscores = $_POST['typedscores'];
+
+            // Regular expression to match the format x,y
+            $regex = '/^\d+,\s?\d+$/m';
+
+            // Check if the input matches the format
+            if (preg_match($regex, $typedscores)) {
+                $scores = $typedscores;
+            } else {
+                echo "Error: Please enter coordinates in the format x,y";
+                die();
+            }
+        } else {
+            echo "Error: File not found or formatted incorrectly.";
+            die();
         }
-        return "";
-    }
 
-    function validateEmail(field){
-        if(field.trim() == "") return "No Email was entered.\\n";
-        else if (!((field.indexOf(".") > 0)  && (field.indexOf("@") > 0)) || /[^a-zA-Z0-9.@_-]/.test(field))
-        return "The Email address is invalid.\\n";
-        return "";
-    }
+        // Insert scores into database
+        $query = "INSERT INTO scores (username, modelname, scores) VALUES 
+            ('$username', '$modelname', '$scores')";
+        $result = $conn->query($query);
+        if (!$result) {
+            echo "INSERT failed: $query<br>" . $conn->error . "<br><br>";
+            die();
+        }
 
-    function validatePassword(field) {
-        if (field.trim() === "") return "No Password was entered.\\n";
-        else if (field.length < 6)
-            return "Passwords must be at least 6 characters.\\n";
-        else if (!/[a-z]/.test(field) || !/[A-Z]/.test(field) || !/[0-9]/.test(field))
-            return "Passwords require one each of a-z, A-Z and 0-9.\\n";
-        return "";
-    }
+        // Train the model based on the selected algorithm
+        if ($selected_algorithm == 'K-Means') {
+            echo "Training model using K-Means algorithm...<br>";
+            km($modelname, $scores, $conn);
 
-    function validateSignUp(form){
-        var fail = "";
-        fail += validateName(form.name.value);
-        fail += validateUsername(form.username.value);
-        fail += validateEmail(form.email.value);
-        fail += validatePassword(form.password.value);
-
-        if (fail === "") return true;
-        else { alert(fail); return false; }
-    }
-
-    function validateLogin(form){
-        var fail = "";
-        fail += validateUsername(form.logUsername.value);
-        fail += validatePassword(form.logPassword.value);
-    
-        if (fail === "") return true;
-        else { alert(fail); return false; }
-    }
-</script>
-
-_END;
-
-if (isset($_POST['name']) && isset($_POST['username']) && isset($_POST['email']) && isset($_POST['password'])) {
-    $name = sanitizeString($_POST['name']);
-    $username = sanitizeString($_POST['username']);
-    $email = sanitizeString($_POST['email']);
-    $password = sanitizeString($_POST['password']);
-
-    if(searchUsername($username)){
-        echo '<script>alert("This username is already taken.");</script>';
-    }else{
-        if(verify($name, $username, $email, $password)){
-            $salt1 = "qm&h*";
-            $salt2 = "pg!@";
-            $token = hash('ripemd128', $salt1 . $password . $salt2); // Correct token generation
-            insertDB($name, $username, $email, $token);
-
-            session_start();
-            $_SESSION['username'] = $username;
-            $_SESSION['initiated'] = true;
-            $conn->close();
-            header('Location: test.php');
-            exit();
-
+        } elseif ($selected_algorithm == 'Expectation Maximization') {
+            echo "Training model using Expectation Maximization algorithm...<br>";
+            expectationMaximization($modelname, $scores, 3, 100, 0.001, $conn);
         }
     }
+
+
+    // TEST MODEL
+    // Choose a trained model, upload scores to test with
+    echo <<<_END
+    <br>
+    <div style="display: flex; justify-content: center; align-items: center;">
+        <form method="post" action="home.php" enctype='multipart/form-data'>
+            <table border="0" cellpadding="2" cellspacing="15" bgcolor="#eeeeee">
+                <th colspan="2" align="center">Test Model using Trained Models</th>
+                <tr>
+                    <td>Choose a trained model:</td>
+                    <td><select name='model_dropdown'>
+                        <option value=''>Select model</option>
+    _END;
+
+    // Display trained models in dropdown 
+    $query = "SELECT * FROM scores where kmid != '' or emid != ''";
+    $result = $conn->query($query);
+    if (!$result)
+        die("Database access failed: " . $conn->error);
+
+    $rows = $result->num_rows;
+    for ($j = 0; $j < $rows; ++$j) {
+        $result->data_seek($j);
+        $row = $result->fetch_array(MYSQLI_NUM);
+
+        $modelname = $row[2];
+        $kmid = $row[4];
+        $emid = $row[5];
+
+        // Indicate which trained models are KM or EM
+        if ($kmid != '')
+            $modelname .= '.KM';
+        if ($emid != '')
+            $modelname .= '.EM';
+
+        echo "<option value='$modelname' $selected>$modelname</option>";
+    }
+    echo <<<_END
+                        </select></td></tr>
+                <tr>
+                    <td>Upload txt file:</td>
+                    <td><input type="file" maxlength="128" name="filename" size="10"></td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="center"><input type="submit" name="testmodel" value="Test Model"></td>
+                </tr>
+            </table>
+        </form>
+    </div>
+    _END;
+
+    // Test the uploaded scores with the selected trained model
+    if (isset($_POST['testmodel'])) {
+        $selected_trainedmodel = $_POST['model_dropdown'];
+
+        // Handle file upload
+        if ($_FILES) {
+            $file = $_FILES['filename']['name'];
+
+            // Must be .txt file type
+            if ($_FILES['filename']['type'] == 'text/plain') {
+                // Open file
+                $fh = fopen($file, 'r') or
+                    die("File does not exist or you lack permission to open it");
+                // Read file
+                while (!feof($fh)) {
+                    $line = fgets($fh);
+                    $scores .= $line;
+                }
+
+                // Test the uploaded scores based on the selected trained model
+                if (strpos($selected_trainedmodel, 'KM') !== false) {
+                    km2($scores, $selected_trainedmodel, $conn);
+                } elseif (strpos($selected_trainedmodel, 'EM') != false) {
+                    em($scores, $selected_trainedmodel, $conn);
+                } else {
+                    echo "No test model chosen";
+                }
+            } else
+                echo "'$file' is not an accepted file type";
+        } else {
+            echo "No file uploaded";
+        }
+    }
+} else
+    // If unregistered user accesses this page, redirect them to log in
+    echo "Please <a href='loginsignup.php'>click here</a> to log in.";
+
+$conn->close();
+
+function get_post($conn, $var)
+{
+    return $conn->real_escape_string($_POST[$var]);
 }
 
-if(isset($_POST['logUsername']) && isset($_POST['logPassword'])){
-    $username = sanitizeString($_POST['logUsername']);
-    $password = sanitizeString($_POST['logPassword']);
+function checkModelNameExists($modelname, $conn)
+{
+    // Sanitize the input to prevent SQL injection
+    $modelname = $conn->real_escape_string($modelname);
 
-    $salt1 = "qm&h*";
-    $salt2 = "pg!@";
-    $token = hash('ripemd128', $salt1 . $password . $salt2);
+    // Prepare the query
+    $query = "SELECT * FROM scores WHERE modelname = '$modelname'";
 
-    $stmt = $conn->prepare('SELECT * FROM credentials WHERE username=? AND password=?');
-    $stmt->bind_param('ss', $username, $token);
-    $stmt->execute();
-    $results = $stmt->get_result();
-    $row = $results->fetch_array(MYSQLI_NUM);
-    $stmt->close();
+    // Execute the query
+    $result = $conn->query($query);
 
-    if ($row && $token==$row[3]){
-        session_start();
-        $_SESSION['username'] = $username;
-        $_SESSION['initiated'] = true;
-        $conn->close();
-        header("Location: test.php"); 
-        exit();
-    }else{
-        echo "Incorrect Login Information. Please try again.";
+    if (!$result) {
+        // Query execution failed
+        die("Query failed: " . $conn->error);
     }
-}
 
-
-function insertDB($name, $username, $email, $password){
-    global $conn;
-    $stmt = $conn->prepare('INSERT INTO credentials VALUES (?, ?, ?, ?)');
-    $stmt->bind_param('ssss', $name, $username, $email, $password);
-    $stmt->execute();
-    $stmt->close();
-}
-
-
-function verify($name, $username, $email, $token){
-    if ($name == ''){
-        return false;
-    }elseif($username == '' || (!preg_match('/^[a-zA-Z0-9_-]+$/', $username))){
-        return false;
-    }elseif($email == '' || !(strpos($email, '.') > 0 && strpos($email, '@') > 0) || preg_match('/[^a-zA-Z0-9.@_-]/', $email)){
-        return false;
-    }elseif ($token == '' || strlen($token) < 8 || !preg_match('/[a-z]/', $token) || !preg_match('/[A-Z]/', $token) || !preg_match('/[0-9]/', $token)){
-        return false;
-    }else{
+    // Check if any rows were returned
+    if ($result->num_rows > 0) {
+        // Model name exists
         return true;
+    } else {
+        // Model name does not exist
+        return false;
     }
-
-}function searchUsername($username){
-    global $conn;
-    $stmt = $conn->prepare('SELECT * FROM credentials WHERE username=?');
-    $stmt->bind_param('s', $username);
-    $stmt->execute();
-    $results = $stmt->get_result();
-    $exists = $results->num_rows > 0;
-    $stmt->close();
-    return $exists;
-
-}
-
-function sanitizeString($var) {
-    $var = stripslashes($var);
-    $var = strip_tags($var);
-    $var = htmlentities($var);
-    return $var;
 }
 ?>
