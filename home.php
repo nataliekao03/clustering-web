@@ -202,18 +202,8 @@ if (isset($_SESSION['username'])) {
                 if (strpos($selected_trainedmodel, 'KM') !== false) {
                     km2($scores, $selected_trainedmodel, $conn);
                 }elseif(strpos($selected_trainedmodel, 'EM') != false) {
-                    $query = "SELECT * FROM em WHERE modelname = '$selected_trainedmodel'";
-                $result = $conn->query($query);
-                if (!$result) {
-                    die("Database access failed: " . $conn->error);
-                }
-                $row = $result->fetch_assoc();
-                $trained_means = unserialize($row['means']);
-                $trained_variances = unserialize($row['variances']);
-                $trained_mixing_coefficients = unserialize($row['mixing_coefficients']);
-
-                // Test the EM model
-                $result = em($selected_trainedmodel, $scores, $trained_means, $trained_variances, $trained_mixing_coefficients, 0.001, $conn);                }else{
+                    em($scores, $selected_trainedmodel, $conn);
+                } else{
                     echo "No test model chosen";
                 }
             } else

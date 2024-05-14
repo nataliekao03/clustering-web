@@ -12,8 +12,11 @@ function expectationMaximization($modelname, $scores, $num_clusters, $max_iterat
     $lines = explode("\n", $scores);
     foreach ($lines as $line) {
         $values = explode(",", $line);
-        $data[] = [floatval($values[0]), floatval($values[1])];
+        if (count($values) >= 2) { // Check if there are at least two elements in $values
+            $data[] = [floatval($values[0]), floatval($values[1])];
+        }
     }
+    
 
     // Initialize cluster means randomly
     $num_data = count($data);
@@ -117,14 +120,14 @@ function expectationMaximization($modelname, $scores, $num_clusters, $max_iterat
     $mixing_coefficients_str = serialize($mixing_coefficients);
 
     // Insert the serialized strings into the database
+    $newmodelname = "$modelname.EM";
     $query = "INSERT INTO em (modelname, means, variances, mixing_coefficients) 
-          VALUES ('$modelname', '$means_str', '$variances_str', '$mixing_coefficients_str')";
+          VALUES ('$newmodelname', '$means_str', '$variances_str', '$mixing_coefficients_str')";
     $result = $conn->query($query);
 
     if (!$result)
         die("Insertion failed: " . $conn->error);
 
-    $newmodelname = "$modelname.EM";
 
     $emid = $conn->insert_id;
     $query = "UPDATE scores SET emid = $emid WHERE modelname = '$modelname'";
@@ -137,34 +140,49 @@ function expectationMaximization($modelname, $scores, $num_clusters, $max_iterat
 }
 
 // Function to test the trained EM model with new dataset
-function em($modelname, $new_scores, $trained_means, $trained_variances, $trained_mixing_coefficients, $tolerance, $conn) {
+function em($scores, $selected_trainedmodel, $conn) {
     // Parse new scores
-    $new_data = [];
-    $query = "SELECT means, variances, mixing_coefficients FROM em WHERE modelname='$modelname";
-    $result = mysqli_query($conn, $query);
-    if (!$result) {
-        die("Database query failed.");
-    }
-    while ($row = mysqli_fetch_assoc($result)) {
-        $new_data[] = [floatval($row['column1']), floatval($row['column2'])];
+
+    $data = [];
+    $lines = explode("\n", $scores);
+    foreach ($lines as $line) {
+        $values = explode(",", $line);
+        $data[] = [floatval($values[0]), floatval($values[1])];
     }
 
+    $query = "SELECT means, variances, mixing_coefficients FROM em WHERE modelname='$selected_trainedmodel'";
+
+    $result = mysqli_query($conn, $query);
+    if (!$result) {
+        die("Database query failed: " . mysqli_error($conn));
+    }
+
+    if (mysqli_num_rows($result) == 0) {
+        die("No data for model '$selected_trainedmodel'");
+    }
+
+    $row = mysqli_fetch_assoc($result);
+
+    $means = unserialize($row['means']);
+    $variances = unserialize($row['variances']);
+    $mixing_coefficients = unserialize($row['mixing_coefficients']);
+
     // Initialize variables
-    $num_clusters = count($trained_means);
-    $num_dimensions = count($trained_means[0]);
-    $num_new_data = count($new_data);
+    $num_clusters = count($means);
+    $num_dimensions = count($means[0]);
+    $num_new_data = count($means);
     $cluster_probs = [];
 
     // Iterate over new data
     for ($i = 0; $i < $num_new_data; $i++) {
-        $point = $new_data[$i];
+        $point = $means[$i];
         $prob_sum = 0;
 
         // Calculate cluster probabilities for each point
         for ($j = 0; $j < $num_clusters; $j++) {
             $distance = 0;
             for ($k = 0; $k < $num_dimensions; $k++) {
-                $distance += pow($point[$k] - $trained_means[$j][$k], 2);
+                $distance += pow($point[$k] - $means[$j][$k], 2);
             }
             $cluster_probs[$i][$j] = exp(-$distance / 2); // Gaussian distribution assumption
             $prob_sum += $cluster_probs[$i][$j];
@@ -181,8 +199,25 @@ function em($modelname, $new_scores, $trained_means, $trained_variances, $traine
         }
     }
 
-    // Display results or return them as needed
-    return $cluster_probs; // Return cluster probabilities for each new data point
+    // Display results
+    echo "<h2>Cluster Probabilities for Each Data Point:</h2>";
+    echo "<table border='1'>";
+    echo "<tr><th>Data Point</th>";
+    for ($j = 0; $j < $num_clusters; $j++) {
+        echo "<th>Cluster " . ($j + 1). "</th>";
+    }
+    echo "</tr>";
+    for ($i = 0; $i < $num_new_data; $i++) {
+        echo "<tr><td>Data Point $i</td>";
+        for ($j = 0; $j < $num_clusters; $j++) {
+            echo "<td>" . number_format($cluster_probs[$i][$j], 6) . "</td>"; // Display probabilities with 6 decimal places
+        }
+        echo "</tr>";
+    }
+    echo "</table>";
+
+    // Return cluster probabilities for each new data point
+    return $cluster_probs;
 }
 
 
