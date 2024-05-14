@@ -34,18 +34,21 @@ CREATE TABLE km (
 CREATE TABLE em (
     emid INT AUTO_INCREMENT PRIMARY KEY,
     modelname VARCHAR(128),
-    iteration INT,
-    centroid1x FLOAT,
-    centroid1y FLOAT,
-    centroid2x FLOAT,
-    centroid2y FLOAT,
-    centroid3x FLOAT,
-    centroid3y FLOAT,
+    means VARCHAR(255) NOT NULL,
+    variances VARCHAR(255) NOT NULL,
+    mixing_coefficents VARCHAR(255) NOT NULL,
     UNIQUE (modelname)
 );
 --     FOREIGN KEY (emid) REFERENCES scores (emid)
 
-
 ALTER TABLE scores
 ADD FOREIGN KEY (kmid) REFERENCES km (kmid),
 ADD FOREIGN KEY (emid) REFERENCES em (emid);
+
+-- to delete all records in scores;
+truncate scores;
+
+-- to delete all records in km;
+delete from km where kmid > 0;
+-- to reset kmid in km to 0
+alter table km auto_increment = 0;
